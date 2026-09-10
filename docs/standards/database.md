@@ -7,7 +7,10 @@
 - 服务间不做跨库 JOIN，外键只引用本库表。科室服务中 `head_doctor_id`、值班表的
   `staff_id` 是账号服务用户 ID 的**软引用**，不建物理外键；用户表的
   `department_id` 同理。
-- 连接通过 `DATABASE_URL` 环境变量注入，禁止硬编码。
+- 连接通过环境变量注入，禁止硬编码：服务级 `.env` 或显式注入使用通用名
+  `DATABASE_URL`；monorepo 根 `.env` 统一注入时按服务区分，使用
+  `ACCOUNT_DATABASE_URL` / `DEPARTMENT_DATABASE_URL`。连接串缺失时必须立即报错，
+  禁止静默回退到 `localhost:5432` 默认值。
 
 ## 2. 迁移文件
 

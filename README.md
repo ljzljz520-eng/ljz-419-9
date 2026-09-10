@@ -24,10 +24,9 @@ npm install
 # 2. 启动 PostgreSQL（自动创建 account_service / department_service 两个库）
 docker compose up -d
 
-# 3. 准备环境变量
+# 3. 准备环境变量（复制根目录样例即可，两个服务会自动读取；
+#    也可按需再复制各服务的 .env.example 做服务级覆盖）
 cp .env.example .env
-cp services/account-service/.env.example services/account-service/.env
-cp services/department-service/.env.example services/department-service/.env
 # 确保两个服务的 JWT_SECRET 一致
 
 # 4. 数据库迁移 + 种子数据

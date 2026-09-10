@@ -1,10 +1,10 @@
-import dotenv from 'dotenv';
-import { createLogger, createPool } from '@hospital/common';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createLogger, createPool, loadEnv, resolveDatabaseUrl } from '@hospital/common';
 
-dotenv.config();
+loadEnv(path.dirname(fileURLToPath(import.meta.url)));
 
 const logger = createLogger({ service: 'department-service-seed' });
-const pool = createPool(process.env.DATABASE_URL ?? '');
 
 const DEPT_INTERNAL = '00000000-0000-4000-8000-000000000001';
 const DEPT_SURGERY = '00000000-0000-4000-8000-000000000002';
@@ -51,29 +51,33 @@ const schedules = [
 ];
 
 async function main(): Promise<void> {
-  for (const d of departments) {
-    await pool.query(
-      `INSERT INTO departments (id, code, name, description, location, contact_phone, head_doctor_id)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       ON CONFLICT (code) DO NOTHING`,
-      [d.id, d.code, d.name, d.description, d.location, d.contactPhone, d.headDoctorId]
-    );
-    logger.info(`已确保种子科室存在：${d.code} ${d.name}`);
+  // 支持 DATABASE_URL（服务级 .env）或 DEPARTMENT_DATABASE_URL（根 .env 统一注入）
+  const pool = createPool(resolveDatabaseUrl('DEPARTMENT_DATABASE_URL'));
+  try {
+    for (const d of departments) {
+      await pool.query(
+        `INSERT INTO departments (id, code, name, description, location, contact_phone, head_doctor_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (code) DO NOTHING`,
+        [d.id, d.code, d.name, d.description, d.location, d.contactPhone, d.headDoctorId]
+      );
+      logger.info(`已确保种子科室存在：${d.code} ${d.name}`);
+    }
+    for (const s of schedules) {
+      await pool.query(
+        `INSERT INTO duty_schedules (department_id, staff_id, staff_name, duty_date, shift, note)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT DO NOTHING`,
+        [s.departmentId, s.staffId, s.staffName, s.dutyDate, s.shift, s.note]
+      );
+    }
+    logger.info('已确保种子值班数据存在');
+  } finally {
+    await pool.end();
   }
-  for (const s of schedules) {
-    await pool.query(
-      `INSERT INTO duty_schedules (department_id, staff_id, staff_name, duty_date, shift, note)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       ON CONFLICT DO NOTHING`,
-      [s.departmentId, s.staffId, s.staffName, s.dutyDate, s.shift, s.note]
-    );
-  }
-  logger.info('已确保种子值班数据存在');
 }
 
-main()
-  .catch((err) => {
-    logger.error({ err }, '种子数据写入失败');
-    process.exitCode = 1;
-  })
-  .finally(() => void pool.end());
+main().catch((err) => {
+  logger.error({ err }, '种子数据写入失败');
+  process.exitCode = 1;
+});
