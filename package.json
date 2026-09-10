@@ -1,0 +1,28 @@
+{
+  "name": "hospital-department-portal",
+  "private": true,
+  "version": "1.0.0",
+  "description": "医院科室账号门户：账号服务（医生/护士/管理员权限）+ 科室服务（科室资料/值班信息）+ 前端门户",
+  "workspaces": [
+    "packages/*",
+    "services/*",
+    "web"
+  ],
+  "scripts": {
+    "build:common": "npm run build -w @hospital/common",
+    "build:services": "npm run build -w @hospital/account-service && npm run build -w @hospital/department-service",
+    "build:web": "npm run build -w @hospital/web",
+    "build": "npm run build:common && npm run build:services && npm run build:web",
+    "typecheck:services": "npm run typecheck -w @hospital/account-service && npm run typecheck -w @hospital/department-service",
+    "dev:account": "npm run dev -w @hospital/account-service",
+    "dev:department": "npm run dev -w @hospital/department-service",
+    "dev:web": "npm run dev -w @hospital/web",
+    "migrate:account": "npm run migrate -w @hospital/account-service",
+    "migrate:department": "npm run migrate -w @hospital/department-service",
+    "seed:account": "npm run seed -w @hospital/account-service",
+    "seed:department": "npm run seed -w @hospital/department-service"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

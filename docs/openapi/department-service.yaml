@@ -1,0 +1,341 @@
+openapi: 3.0.3
+info:
+  title: 科室服务 API（department-service）
+  version: 1.0.0
+  description: >-
+    管理科室资料与值班信息。JWT 由 account-service 签发、本服务验签；
+    非管理员只能访问本科室数据。统一前缀 /api/v1。
+servers:
+  - url: http://localhost:3002/api/v1
+    description: 本地开发
+tags:
+  - name: Health
+  - name: Departments
+  - name: Schedules
+
+security:
+  - bearerAuth: []
+
+paths:
+  /departments:
+    get:
+      tags: [Departments]
+      summary: 查询科室列表（所有登录角色）
+      parameters:
+        - name: keyword
+          in: query
+          description: 按名称或编码模糊搜索
+          schema: { type: string }
+      responses:
+        '200':
+          description: 科室列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepartmentListEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Departments]
+      summary: 创建科室（仅 ADMIN）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDepartmentRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepartmentEnvelope'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /departments/{departmentId}:
+    parameters:
+      - $ref: '#/components/parameters/DepartmentId'
+    get:
+      tags: [Departments]
+      summary: 科室详情（DOCTOR/NURSE 限本科室）
+      responses:
+        '200':
+          description: 科室详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepartmentEnvelope'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Departments]
+      description: 更新科室资料（仅 ADMIN）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDepartmentRequest'
+      responses:
+        '200':
+          description: 更新后的科室
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DepartmentEnvelope'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /departments/{departmentId}/schedules:
+    parameters:
+      - $ref: '#/components/parameters/DepartmentId'
+    get:
+      tags: [Schedules]
+      summary: 查询科室值班表（DOCTOR/NURSE 限本科室）
+      parameters:
+        - name: dateFrom
+          in: query
+          schema: { type: string, format: date }
+        - name: dateTo
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: 值班列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleListEnvelope'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Schedules]
+      summary: 新增值班（仅 ADMIN，路径科室必须匹配）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateScheduleRequest'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleEnvelope'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /departments/{departmentId}/schedules/{scheduleId}:
+    parameters:
+      - $ref: '#/components/parameters/DepartmentId'
+      - name: scheduleId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      tags: [Schedules]
+      summary: 修改值班（仅 ADMIN，且记录须属于该科室）
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateScheduleRequest'
+      responses:
+        '200':
+          description: 更新后的值班记录
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleEnvelope'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      tags: [Schedules]
+      summary: 删除值班（仅 ADMIN，且记录须属于该科室）
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: object
+                    properties:
+                      id: { type: string, format: uuid }
+                      deleted: { type: boolean, example: true }
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    DepartmentId:
+      name: departmentId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  schemas:
+    DepartmentStatus:
+      type: string
+      enum: [ACTIVE, INACTIVE]
+    Shift:
+      type: string
+      enum: [MORNING, AFTERNOON, NIGHT]
+      description: 早班 / 午班 / 夜班
+    Department:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string, example: INTERNAL }
+        name: { type: string, example: 内科 }
+        description: { type: string, nullable: true }
+        location: { type: string, nullable: true }
+        contactPhone: { type: string, nullable: true }
+        headDoctorId: { type: string, format: uuid, nullable: true }
+        status: { $ref: '#/components/schemas/DepartmentStatus' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    DutySchedule:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        departmentId: { type: string, format: uuid }
+        staffId: { type: string, format: uuid, description: 账号服务用户 ID }
+        staffName: { type: string, example: 李医生 }
+        dutyDate: { type: string, format: date, example: '2026-09-10' }
+        shift: { $ref: '#/components/schemas/Shift' }
+        note: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CreateDepartmentRequest:
+      type: object
+      required: [code, name]
+      properties:
+        code: { type: string, minLength: 2, maxLength: 30, pattern: '^[A-Za-z0-9_-]+$' }
+        name: { type: string, maxLength: 100 }
+        description: { type: string, nullable: true }
+        location: { type: string, maxLength: 200, nullable: true }
+        contactPhone: { type: string, pattern: '^[0-9+\\-\\s()]{5,30}$', nullable: true }
+        headDoctorId: { type: string, format: uuid, nullable: true }
+    UpdateDepartmentRequest:
+      type: object
+      minProperties: 1
+      properties:
+        name: { type: string }
+        description: { type: string, nullable: true }
+        location: { type: string, nullable: true }
+        contactPhone: { type: string, nullable: true }
+        headDoctorId: { type: string, format: uuid, nullable: true }
+        status: { $ref: '#/components/schemas/DepartmentStatus' }
+    CreateScheduleRequest:
+      type: object
+      required: [staffId, staffName, dutyDate, shift]
+      properties:
+        staffId: { type: string, format: uuid }
+        staffName: { type: string }
+        dutyDate: { type: string, format: date }
+        shift: { $ref: '#/components/schemas/Shift' }
+        note: { type: string, nullable: true }
+    UpdateScheduleRequest:
+      type: object
+      minProperties: 1
+      properties:
+        staffId: { type: string, format: uuid }
+        staffName: { type: string }
+        dutyDate: { type: string, format: date }
+        shift: { $ref: '#/components/schemas/Shift' }
+        note: { type: string, nullable: true }
+    DepartmentEnvelope:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        data: { $ref: '#/components/schemas/Department' }
+    DepartmentListEnvelope:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Department' }
+    ScheduleEnvelope:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        data: { $ref: '#/components/schemas/DutySchedule' }
+    ScheduleListEnvelope:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/DutySchedule' }
+    Error:
+      type: object
+      properties:
+        success: { type: boolean, example: false }
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string, example: FORBIDDEN }
+            message: { type: string, example: 只能访问本科室的数据 }
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  field: { type: string }
+                  message: { type: string }
+        requestId: { type: string }
+  responses:
+    ValidationError:
+      description: 参数校验失败
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: 未认证
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: 无权限
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: 数据冲突
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
